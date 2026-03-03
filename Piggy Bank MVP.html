@@ -1,0 +1,413 @@
+<!DOCTYPE html>  
+<html lang="en">  
+<head>  
+    <meta charset="UTF-8">  
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+    <title>FF Diamond Bank Event (Loop)</title>  
+    <style>  
+        /* --- 样式部分保持一致，增加了进度条的双色显示逻辑 --- */  
+        :root {  
+            --ff-gold: #FFCC00;  
+            --ff-dark: #121212;  
+            --ff-panel: #1E1E1E;  
+            --ff-orange: #FF5500;  
+            --ff-green: #2ecc71;  
+            --ff-grey: #555;  
+        }  
+        body {  
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;  
+            background-color: var(--ff-dark);  
+            color: white;  
+            margin: 0;  
+            padding: 0;  
+            display: flex;  
+            justify-content: center;  
+            align-items: center;  
+            min-height: 100vh;  
+        }  
+        .app-container {  
+            width: 100%;  
+            max-width: 400px;  
+            background-color: var(--ff-panel);  
+            min-height: 100vh;  
+            position: relative;  
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);  
+            display: flex;  
+            flex-direction: column;  
+        }  
+          
+        .header {  
+            background: linear-gradient(135deg, #2c3e50, #000);  
+            padding: 20px;  
+            text-align: center;  
+            border-bottom: 2px solid var(--ff-gold);  
+        }  
+        .header h1 {  
+            margin: 0;  
+            font-style: italic;  
+            text-transform: uppercase;  
+            color: var(--ff-gold);  
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);  
+            font-size: 1.5rem;  
+        }  
+  
+        .content {  
+            padding: 30px 20px;  
+            flex-grow: 1;  
+            display: flex;  
+            flex-direction: column;  
+            align-items: center;  
+        }  
+  
+        /* 状态显示区 */  
+        .status-card {  
+            background: rgba(255,255,255,0.05);  
+            width: 100%;  
+            padding: 15px;  
+            border-radius: 8px;  
+            margin-bottom: 20px;  
+            display: flex;  
+            justify-content: space-between;  
+            align-items: center;  
+        }  
+        .status-item { text-align: center; }  
+        .status-label { font-size: 0.75rem; color: #aaa; text-transform: uppercase; }  
+        .status-val { font-size: 1.2rem; font-weight: bold; color: white; }  
+        .status-val.gold { color: var(--ff-gold); }  
+        .status-val.green { color: var(--ff-green); }  
+  
+        /* 进度条 */  
+        .progress-container {  
+            width: 100%;  
+            height: 30px;  
+            background-color: #333;  
+            border-radius: 15px;  
+            overflow: hidden;  
+            border: 2px solid #555;  
+            position: relative;  
+            margin-bottom: 30px;  
+        }  
+        .progress-bar-claimed {  
+            height: 100%;  
+            background-color: var(--ff-green); /* 已领取的显示绿色 */  
+            position: absolute;  
+            left: 0; top: 0;  
+            transition: width 0.5s;  
+        }  
+        .progress-bar-pending {  
+            height: 100%;  
+            background: linear-gradient(90deg, #FDB931, #FFCC00); /* 待领取的显示金色 */  
+            position: absolute;  
+            top: 0;  
+            transition: width 0.5s, left 0.5s;  
+        }  
+        .progress-text {  
+            position: absolute;  
+            width: 100%;  
+            text-align: center;  
+            line-height: 26px;  
+            font-weight: bold;  
+            color: white;  
+            text-shadow: 0 1px 2px black;  
+            z-index: 5;  
+        }  
+  
+        /* 按钮 */  
+        .main-btn {  
+            background: linear-gradient(to bottom, #FF8800, #FF5500);  
+            border: none;  
+            width: 100%;  
+            padding: 15px;  
+            font-size: 1.1rem;  
+            font-weight: bold;  
+            color: white;  
+            text-transform: uppercase;  
+            border-radius: 8px;  
+            cursor: pointer;  
+            box-shadow: 0 4px 0 #cc4400;  
+            transition: all 0.2s;  
+            margin-bottom: 15px;  
+        }  
+        .main-btn:active { transform: translateY(4px); box-shadow: none; }  
+        .main-btn.green {  
+            background: linear-gradient(to bottom, #2ecc71, #27ae60);  
+            box-shadow: 0 4px 0 #219150;  
+        }  
+        .main-btn:disabled {  
+            background: #444;  
+            color: #888;  
+            box-shadow: none;  
+            cursor: not-allowed;  
+        }  
+  
+        .info-text {  
+            font-size: 0.85rem;  
+            color: #888;  
+            text-align: center;  
+        }  
+  
+        /* 底部控制台 */  
+        .dev-panel {  
+            background-color: #000;  
+            padding: 15px;  
+            border-top: 1px solid #333;  
+        }  
+        .dev-title { font-size: 0.7rem; color: #555; margin-bottom: 8px; text-transform: uppercase;}  
+        .dev-controls { display: flex; gap: 10px; }  
+        .dev-btn {  
+            flex: 1; padding: 10px; font-size: 0.8rem;  
+            background: #222; border: 1px solid #444; color: #ddd;  
+            border-radius: 4px; cursor: pointer;  
+        }  
+        .dev-btn:hover { background: #333; }  
+  
+        /* 弹窗 */  
+        .modal-overlay {  
+            position: absolute;  
+            top: 0; left: 0; right: 0; bottom: 0;  
+            background: rgba(0,0,0,0.85);  
+            display: none;  
+            justify-content: center;  
+            align-items: center;  
+            z-index: 999;  
+        }  
+        .modal {  
+            background: #222; padding: 25px; border-radius: 12px;  
+            text-align: center; border: 2px solid var(--ff-gold); width: 80%;  
+        }  
+        .loader {  
+            border: 4px solid #f3f3f3; border-top: 4px solid var(--ff-gold);  
+            border-radius: 50%; width: 30px; height: 30px;  
+            animation: spin 1s linear infinite; margin: 0 auto 15px;  
+        }  
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }  
+  
+    </style>  
+</head>  
+<body>  
+  
+<div class="app-container">  
+    <div class="header">  
+        <h1>Diamond Bank</h1>  
+    </div>  
+  
+    <div class="content">  
+        <!-- 状态卡片 -->  
+        <div class="status-card">  
+            <div class="status-item">  
+                <div class="status-label">In Bank</div>  
+                <div class="status-val gold" id="val-in-bank">0</div>  
+            </div>  
+            <div class="status-item">  
+                <div class="status-label">Claimed</div>  
+                <div class="status-val green" id="val-claimed">0</div>  
+            </div>  
+        </div>  
+  
+        <!-- 进度条 -->  
+        <div class="progress-container">  
+            <div class="progress-text" id="progress-text">0 / 200</div>  
+            <!-- 绿色部分：已领取 -->  
+            <div class="progress-bar-claimed" id="bar-claimed" style="width: 0%"></div>  
+            <!-- 金色部分：待领取 -->  
+            <div class="progress-bar-pending" id="bar-pending" style="width: 0%; left: 0%"></div>  
+        </div>  
+  
+        <!-- 主按钮 -->  
+        <button id="main-action-btn" class="main-btn" onclick="handleMainAction()">  
+            Play Rank Match  
+        </button>  
+  
+        <div class="info-text" id="status-info">  
+            Win rank matches to fill the bank!  
+        </div>  
+    </div>  
+  
+    <!-- 开发者面板 -->  
+    <div class="dev-panel">  
+        <div class="dev-title">🔧 MVP Simulation Controls</div>  
+        <div class="dev-controls">  
+            <button class="dev-btn" onclick="simMatch()">+ Simulate Match (+20)</button>  
+            <button class="dev-btn" onclick="resetApp()">↻ Reset All</button>  
+        </div>  
+    </div>  
+  
+    <!-- 弹窗 -->  
+    <div class="modal-overlay" id="modal-overlay">  
+        <div class="modal" id="modal-content"></div>  
+    </div>  
+</div>  
+  
+<script>  
+    // --- 配置 ---  
+    const MAX_CAP = 200;  
+    const PER_MATCH = 20;  
+  
+    // --- 状态数据 ---  
+    let state = {  
+        currentHolding: 0, // 银行里还没领的  
+        totalClaimed: 0,   // 已经领到手里的  
+        hasToppedUp: false // 是否充值过门槛  
+    };  
+  
+    // --- DOM ---  
+    const elInBank = document.getElementById('val-in-bank');  
+    const elClaimed = document.getElementById('val-claimed');  
+    const elBarClaimed = document.getElementById('bar-claimed');  
+    const elBarPending = document.getElementById('bar-pending');  
+    const elProgressText = document.getElementById('progress-text');  
+    const elBtn = document.getElementById('main-action-btn');  
+    const elInfo = document.getElementById('status-info');  
+    const elModal = document.getElementById('modal-overlay');  
+    const elModalContent = document.getElementById('modal-content');  
+  
+    function init() { render(); }  
+  
+    function render() {  
+        // 1. 更新数值  
+        elInBank.innerText = state.currentHolding;  
+        elClaimed.innerText = state.totalClaimed;  
+          
+        const totalProgress = state.currentHolding + state.totalClaimed;  
+        elProgressText.innerText = `${totalProgress} / ${MAX_CAP}`;  
+  
+        // 2. 更新进度条 (双色逻辑)  
+        const pctClaimed = (state.totalClaimed / MAX_CAP) * 100;  
+        const pctPending = (state.currentHolding / MAX_CAP) * 100;  
+  
+        elBarClaimed.style.width = `${pctClaimed}%`;  
+        elBarPending.style.width = `${pctPending}%`;  
+        elBarPending.style.left = `${pctClaimed}%`; // 金色接在绿色后面  
+  
+        // 3. 核心按钮逻辑 (状态机)  
+          
+        // A. 已经全部领完了 (200)  
+        if (state.totalClaimed >= MAX_CAP) {  
+            setBtn("EVENT COMPLETED", false, true, "You have claimed the maximum amount!");  
+            return;  
+        }  
+  
+        // B. 银行里有钱 (Pending > 0)  
+        if (state.currentHolding > 0) {  
+            // B1. 还没充值 -> 引导充值  
+            if (!state.hasToppedUp) {  
+                setBtn("CASH OUT ➔", false, false, "Top-up once to unlock withdrawals!");  
+            }   
+            // B2. 充值过了 -> 可以领钱  
+            else {  
+                setBtn(`CLAIM ${state.currentHolding} DIAMONDS`, true, false, "Diamonds are ready to collect!");  
+            }  
+            return;  
+        }  
+  
+        // C. 银行是空的 (Pending == 0)，但还没满额 -> 引导去玩  
+        if (state.currentHolding === 0) {  
+            setBtn("PLAY RANK MATCH", false, false, "Play matches to earn more diamonds.");  
+            return;  
+        }  
+    }  
+  
+    function setBtn(text, isGreen, isDisabled, info) {  
+        elBtn.innerText = text;  
+        elBtn.disabled = isDisabled;  
+        elInfo.innerText = info;  
+          
+        if (isGreen) elBtn.classList.add('green');  
+        else elBtn.classList.remove('green');  
+    }  
+  
+    // --- 交互逻辑 ---  
+  
+    function handleMainAction() {  
+        const total = state.totalClaimed + state.currentHolding;  
+  
+        // 1. 去玩游戏  
+        if (state.currentHolding === 0 && total < MAX_CAP) {  
+            alert("Redirecting to Matchmaking... (Simulation: Click '+ Simulate Match' below)");  
+            return;  
+        }  
+  
+        // 2. 去充值  
+        if (state.currentHolding > 0 && !state.hasToppedUp) {  
+            showTopUpSim();  
+            return;  
+        }  
+  
+        // 3. 领钱  
+        if (state.currentHolding > 0 && state.hasToppedUp) {  
+            doClaim();  
+            return;  
+        }  
+    }  
+  
+    // --- 模拟器逻辑 ---  
+  
+    function simMatch() {  
+        const spaceLeft = MAX_CAP - (state.totalClaimed + state.currentHolding);  
+          
+        if (spaceLeft <= 0) {  
+            alert("Max cap reached! Claim your diamonds now.");  
+            return;  
+        }  
+  
+        // 增加钻石，但不超过剩余空间  
+        const addAmount = Math.min(PER_MATCH, spaceLeft);  
+        state.currentHolding += addAmount;  
+        render();  
+    }  
+  
+    function showTopUpSim() {  
+        showModal(`  
+            <div class="loader"></div>  
+            <h3>Top-up Center</h3>  
+            <p style="color:#aaa;">Simulating Payment...</p>  
+        `);  
+          
+        setTimeout(() => {  
+            showModal(`  
+                <h2 style="color:#2ecc71">Success!</h2>  
+                <p>Top-up requirement met.</p>  
+                <button class="main-btn" onclick="finishTopUp()">Return</button>  
+            `);  
+        }, 1500);  
+    }  
+  
+    function finishTopUp() {  
+        state.hasToppedUp = true;  
+        closeModal();  
+        render();  
+    }  
+  
+    function doClaim() {  
+        const amount = state.currentHolding;  
+        // 转移状态：Pending -> Claimed  
+        state.totalClaimed += amount;  
+        state.currentHolding = 0;  
+          
+        showModal(`  
+            <h1 style="font-size:3rem; margin:5px;">💎</h1>  
+            <h2 style="color:#FFCC00">+${amount} Received</h2>  
+            <p>Sent to in-game mail.</p>  
+            <button class="main-btn" onclick="closeModal()">Continue</button>  
+        `);  
+        render();  
+    }  
+  
+    function resetApp() {  
+        state = { currentHolding: 0, totalClaimed: 0, hasToppedUp: false };  
+        closeModal();  
+        render();  
+    }  
+  
+    function showModal(html) {  
+        elModalContent.innerHTML = html;  
+        elModal.style.display = 'flex';  
+    }  
+    function closeModal() {  
+        elModal.style.display = 'none';  
+    }  
+  
+    init();  
+</script>  
+</body>  
+</html>
